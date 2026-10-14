@@ -25,9 +25,9 @@ browsable with [Datasette Lite](https://lite.datasette.io), with no server.
 | MUM01 | Monthly unemployment | Seasonally adjusted series re-estimated every month |
 | NAQ03 | GDP and GNP (quarterly) | Preliminary national accounts revised as fuller data arrives |
 | EHQ03 | Earnings, hours and labour costs | Each release finalises the previous quarter's preliminary estimate |
-| RSM05 | Retail sales index | Late survey returns and re-estimated seasonal factors |
+| RSM08 | Retail sales index (base 2021) | Late survey returns and re-estimated seasonal factors |
 | HPM09 | Residential property price index | Late stamp duty filings revise recent months |
-| CPM01 | Consumer price index | The control: almost never revised |
+| CPM24 | Consumer price index | The control: almost never revised |
 
 ## The site
 

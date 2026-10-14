@@ -178,11 +178,12 @@ parse_jsonstat <- function(path, table_id = sub("\\.json$", "", basename(path)))
 }
 
 #' Turn PxStat time codes into the first day of the period.
-#' Handles 2024M03, 2024Q1, 2024 and 202403 (monthly without the M).
+#' Handles 2024M03, 2024Q1, 20241 (quarterly), 2024 and 202403 (monthly).
 period_start <- function(code) {
   out <- rep(as.Date(NA), length(code))
   m <- regmatches(code, regexec("^(\\d{4})M(\\d{2})$", code))
   q <- regmatches(code, regexec("^(\\d{4})Q([1-4])$", code))
+  q5 <- grepl("^\\d{4}[1-4]$", code)   # PxStat quarterly codes: 20262 = 2026 Q2
   y <- grepl("^\\d{4}$", code)
   m6 <- grepl("^\\d{6}$", code)
   for (i in seq_along(code)) {
@@ -190,6 +191,8 @@ period_start <- function(code) {
       out[i] <- as.Date(sprintf("%s-%s-01", m[[i]][2], m[[i]][3]))
     } else if (length(q[[i]]) == 3) {
       out[i] <- as.Date(sprintf("%s-%02d-01", q[[i]][2], (as.integer(q[[i]][3]) - 1L) * 3L + 1L))
+    } else if (q5[i]) {
+      out[i] <- as.Date(sprintf("%s-%02d-01", substr(code[i], 1, 4), (as.integer(substr(code[i], 5, 5)) - 1L) * 3L + 1L))
     } else if (y[i]) {
       out[i] <- as.Date(sprintf("%s-01-01", code[i]))
     } else if (m6[i]) {

@@ -6,6 +6,11 @@
 #
 # To track another table, add an entry here. Find codes at
 # https://data.cso.ie (the code is shown on each table's page).
+#
+# CSO replaces a table when it rebases an index (RSM05 base 2015 became RSM08
+# base 2021), and the old one simply stops updating. If a table's latest
+# release on the site is months old, look for its successor. Tables removed
+# from this list keep their history in data/cso.doltlite but drop off the site.
 
 tables:
   - id: MUM01
@@ -26,7 +31,7 @@ tables:
       EHECS publishes a preliminary estimate for the latest quarter and a
       final one for the quarter before, so each release revises the last.
 
-  - id: RSM05
+  - id: RSM08
     title: Retail sales index
     why: >
       Monthly retail sales are revised as late survey returns come in and
@@ -38,7 +43,7 @@ tables:
       Built from stamp duty filings, which can arrive months after a sale,
       so recent index values are revised as late transactions are added.
 
-  - id: CPM01
+  - id: CPM24
     title: Consumer price index
     why: >
       CPI is almost never revised, which makes it the control: any change

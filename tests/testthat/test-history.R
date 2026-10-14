@@ -35,7 +35,9 @@ test_that("revisions, first prints and baseline are classified", {
   expect_equal(d$releases$n_revised, c(0L, 6L, 0L))
   expect_equal(d$releases$n_new_periods, c(0L, 12L, 0L))
   expect_equal(d$releases$is_baseline, c(1L, 0L, 0L))
-  expect_equal(sum(d$vintages$change_type == "baseline"), 12 * 18)
+  # Baseline values stay in observations only, keeping the published file small.
+  expect_equal(sum(d$vintages$change_type == "baseline"), 0)
+  expect_equal(nrow(d$vintages), 12 + 6)
 
   r <- d$revisions[d$revisions$series_key == "MUM01C01|315|-" & d$revisions$period == "2026M06", ]
   expect_equal(r$old_value, 130.8)
@@ -59,4 +61,15 @@ test_that("the exported SQLite opens with stock SQLite", {
   expect_equal(DBI::dbGetQuery(con, "select count(*) n from revisions")$n, 6)
   expect_equal(DBI::dbGetQuery(con, "select title from cso_tables")$title, "Monthly unemployment")
   expect_true(file.exists(file.path(dirname(out), "summary.json")))
+})
+
+test_that("tables dropped from the config are left out of the export", {
+  db <- tempfile(fileext = ".doltlite")
+  record(db, "release1", "release2")
+  out <- file.path(tempfile(), "revisions.db")
+  cfg <- data.frame(table_id = "OTHER01", title = "x", why = NA_character_)
+  export_sqlite(read_history(db), out, cfg)
+  con <- DBI::dbConnect(RSQLite::SQLite(), out)
+  on.exit(DBI::dbDisconnect(con))
+  expect_equal(DBI::dbGetQuery(con, "select count(*) n from observations")$n, 0)
 })

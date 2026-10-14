@@ -30,7 +30,7 @@ test_that("sparse JSON-stat values and object indexes are handled", {
 
 test_that("period codes become start dates", {
   expect_equal(
-    as.character(period_start(c("2024M03", "2024Q3", "2024", "202411", "2024W01"))),
-    c("2024-03-01", "2024-07-01", "2024-01-01", "2024-11-01", NA)
+    as.character(period_start(c("2024M03", "2024Q3", "20243", "2024", "202411", "2024W01"))),
+    c("2024-03-01", "2024-07-01", "2024-07-01", "2024-01-01", "2024-11-01", NA)
   )
 })

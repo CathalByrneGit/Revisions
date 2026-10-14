@@ -23,8 +23,12 @@ derive_revisions <- function(history) {
   ch <- ch[!same, ]
 
   ch <- ch[order(ch$table_id, ch$series_key, ch$period, ch$release), ]
-  vintages <- ch[, c("table_id", "series_key", "period", "release", "change_type",
-                     "value", "old_value")]
+  # Baseline values are what `observations` held on day one; repeating them
+  # here would double the size of the published file, so vintages keeps only
+  # what changed after tracking began.
+  vintages <- ch[ch$change_type != "baseline",
+                 c("table_id", "series_key", "period", "release", "change_type",
+                   "value", "old_value")]
 
   lab <- history$series[, c("table_id", "series_key", "label", "statistic_label", "dims", "unit")]
   per <- history$periods[, c("table_id", "period", "period_label", "period_start")]
@@ -85,6 +89,17 @@ derive_revisions <- function(history) {
 }
 
 export_sqlite <- function(history, path = "site/revisions.db", tables_cfg = NULL) {
+  # Only publish tables that are still configured. Dropped tables (e.g. one
+  # CSO replaced with a rebased successor) keep their history in DoltLite.
+  if (!is.null(tables_cfg)) {
+    keep <- function(df) df[df$table_id %in% tables_cfg$table_id, , drop = FALSE]
+    for (nm in c("releases", "changes", "observations", "series", "periods")) {
+      history[[nm]] <- keep(history[[nm]])
+    }
+  }
+  # Recompute start dates so parser improvements apply to releases recorded
+  # before them, without rewriting history.
+  history$periods$period_start <- as.character(period_start(history$periods$period))
   d <- derive_revisions(history)
   dir.create(dirname(path), recursive = TRUE, showWarnings = FALSE)
   tmp <- tempfile(fileext = ".db")
@@ -98,30 +113,30 @@ export_sqlite <- function(history, path = "site/revisions.db", tables_cfg = NULL
     "CREATE TABLE releases (table_id TEXT REFERENCES cso_tables(table_id),
        release TEXT, title TEXT, tag TEXT, commit_hash TEXT, fetched_at TEXT,
        is_baseline INTEGER, n_new_periods INTEGER, n_revised INTEGER,
-       n_removed INTEGER, n_obs INTEGER, PRIMARY KEY (table_id, release))",
+       n_removed INTEGER, n_obs INTEGER, PRIMARY KEY (table_id, release)) WITHOUT ROWID",
     "CREATE TABLE series (table_id TEXT REFERENCES cso_tables(table_id),
        series_key TEXT, statistic TEXT, statistic_label TEXT, unit TEXT,
-       dims TEXT, label TEXT, PRIMARY KEY (table_id, series_key))",
+       dims TEXT, label TEXT, PRIMARY KEY (table_id, series_key)) WITHOUT ROWID",
     "CREATE TABLE periods (table_id TEXT REFERENCES cso_tables(table_id),
        period TEXT, period_label TEXT, period_start TEXT,
-       PRIMARY KEY (table_id, period))",
+       PRIMARY KEY (table_id, period)) WITHOUT ROWID",
     "CREATE TABLE observations (table_id TEXT REFERENCES cso_tables(table_id),
        series_key TEXT, period TEXT, value REAL,
-       PRIMARY KEY (table_id, series_key, period))",
+       PRIMARY KEY (table_id, series_key, period)) WITHOUT ROWID",
     "CREATE TABLE vintages (table_id TEXT REFERENCES cso_tables(table_id),
        series_key TEXT, period TEXT, release TEXT, change_type TEXT,
        value REAL, old_value REAL,
-       PRIMARY KEY (table_id, series_key, period, release))",
+       PRIMARY KEY (table_id, series_key, period, release)) WITHOUT ROWID",
     "CREATE TABLE revisions (table_id TEXT REFERENCES cso_tables(table_id),
        series_key TEXT, period TEXT, release TEXT, old_value REAL,
        new_value REAL, change REAL, pct_change REAL, label TEXT,
        statistic_label TEXT, dims TEXT, unit TEXT, period_label TEXT,
-       period_start TEXT, PRIMARY KEY (table_id, series_key, period, release))",
+       period_start TEXT, PRIMARY KEY (table_id, series_key, period, release)) WITHOUT ROWID",
     "CREATE TABLE first_vs_latest (table_id TEXT REFERENCES cso_tables(table_id),
        series_key TEXT, period TEXT, first_release TEXT, first_value REAL,
        latest_value REAL, n_revisions INTEGER, total_revision REAL, label TEXT,
        statistic_label TEXT, dims TEXT, unit TEXT, period_label TEXT,
-       period_start TEXT, PRIMARY KEY (table_id, series_key, period))"
+       period_start TEXT, PRIMARY KEY (table_id, series_key, period)) WITHOUT ROWID"
   )
   for (sql in ddl) DBI::dbExecute(con, sql)
 
@@ -153,7 +168,6 @@ export_sqlite <- function(history, path = "site/revisions.db", tables_cfg = NULL
   DBI::dbAppendTable(con, "first_vs_latest", d$first_vs_latest[, cols("first_vs_latest")])
 
   DBI::dbExecute(con, "CREATE INDEX idx_revisions_release ON revisions (release)")
-  DBI::dbExecute(con, "CREATE INDEX idx_vintages_series ON vintages (table_id, series_key, period)")
   DBI::dbExecute(con, "
     CREATE VIEW series_revision_summary AS
     SELECT r.table_id, r.series_key, s.label, s.unit,
