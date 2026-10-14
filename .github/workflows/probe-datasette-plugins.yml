@@ -63,7 +63,7 @@ jobs:
                   errors = []
                   page.on("pageerror", lambda e: errors.append(str(e)[:200]))
                   page.on("console", lambda m: errors.append(m.text[:200]) if m.type == "error" else None)
-                  url = f"https://lite.datasette.io/?url={db}{extra}#/revisions/revisions"
+                  url = f"https://lite.datasette.io/?url={db}{extra}#/revisions/observations_labelled?table_id=MUM01&_size=50"
                   try:
                       page.goto(url, timeout=120000)
                   except Exception as e:
