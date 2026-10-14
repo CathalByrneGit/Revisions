@@ -1,9 +1,10 @@
 name: Probe Datasette Lite chart plugins
 
 # One-off experiment: does Datasette Lite load charting plugins' JavaScript?
-# Opens Datasette Lite in headless Chromium against a tiny time-series
-# database, once per variant, and reports whether each plugin's UI appears.
-# Screenshots are uploaded as an artifact.
+# Opens Datasette Lite in headless Chromium against the published
+# revisions.db (so GitHub Pages must be live), once per variant, and reports
+# whether each plugin's UI appears. Results and screenshots are pushed to the
+# probe-results branch.
 
 on:
   workflow_dispatch:
@@ -24,38 +25,14 @@ jobs:
           pip install playwright
           python -m playwright install --with-deps chromium
 
-      - name: Build a test database and serve it with CORS
-        run: |
-          mkdir -p www
-          python - <<'EOF'
-          import sqlite3, datetime
-          c = sqlite3.connect("www/probe.db")
-          c.execute("create table series (period_start text, value real, kind text)")
-          d = datetime.date(2024, 1, 1)
-          for i in range(24):
-              c.execute("insert into series values (?, ?, 'latest')",
-                        (d.replace(year=2024 + (i // 12), month=i % 12 + 1).isoformat(), 4 + i * 0.05))
-          c.commit()
-          EOF
-          cat > serve.py <<'EOF'
-          import http.server, functools
-          class H(http.server.SimpleHTTPRequestHandler):
-              def end_headers(self):
-                  self.send_header("Access-Control-Allow-Origin", "*")
-                  super().end_headers()
-          http.server.ThreadingHTTPServer(("127.0.0.1", 8000),
-              functools.partial(H, directory="www")).serve_forever()
-          EOF
-          nohup python serve.py > serve.log 2>&1 &
-          sleep 2 && curl -sI http://127.0.0.1:8000/probe.db | head -3
-
       - name: Probe
         run: |
           python - <<'EOF'
           from playwright.sync_api import sync_playwright
           import os, json, urllib.parse
           results = {}
-          db = urllib.parse.quote("http://127.0.0.1:8000/probe.db", safe="")
+          owner, repo = os.environ["GITHUB_REPOSITORY"].split("/")
+          db = urllib.parse.quote(f"https://{owner.lower()}.github.io/{repo}/revisions.db", safe="")
           variants = {
               "baseline": "",
               "vega": "&install=datasette-vega",
@@ -74,7 +51,7 @@ jobs:
                   errors = []
                   page.on("pageerror", lambda e: errors.append(str(e)[:200]))
                   page.on("console", lambda m: errors.append(m.text[:200]) if m.type == "error" else None)
-                  url = f"https://lite.datasette.io/?url={db}{extra}#/probe/series"
+                  url = f"https://lite.datasette.io/?url={db}{extra}#/revisions/revisions"
                   try:
                       page.goto(url, timeout=120000)
                   except Exception as e:
