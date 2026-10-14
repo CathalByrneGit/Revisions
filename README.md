@@ -1,0 +1,120 @@
+# Revisions
+
+**How Irish official statistics change after they are first published.**
+
+The Central Statistics Office revises published figures: seasonally adjusted
+series are re-estimated, GDP is benchmarked, survey estimates are reweighted.
+The CSO API only ever serves the latest version, so the earlier numbers, and
+how far they moved, are lost.
+
+This project keeps them. Every time CSO republishes a tracked table, the
+pipeline commits the new version to a [DoltLite](https://github.com/dolthub/doltlite)
+database (SQLite with Git-style version control) and tags it with the release
+timestamp. The full history of every value is then a `dolt_diff` away.
+
+A plain SQLite file derived from that history is published to GitHub Pages and
+browsable with [Datasette Lite](https://lite.datasette.io), with no server.
+
+> Independent project, not affiliated with or endorsed by the CSO. Source data
+> © CSO, published under CC BY 4.0.
+
+## How it works
+
+```
+tables.yml ──► fetch (PxStat JSON-stat 2.0) ──► parse to series × period
+                                                      │
+                     data/cso.doltlite  ◄─────────────┘  one commit + tag per CSO release
+                             │                          (unchanged releases are skipped)
+                             ▼
+              dolt_diff_observations over the whole history
+                             │  classify: baseline · first print · revision · removed
+                             ▼
+       site/revisions.db (plain SQLite) + metadata.json + summary.json
+                             │
+                             ▼
+             GitHub Pages: landing page + Datasette Lite
+```
+
+It is a [targets](https://docs.ropensci.org/targets/) pipeline, run by a
+scheduled GitHub Action on weekdays after CSO's 11:00 publication time.
+
+The DoltLite file (`data/cso.doltlite`) is committed back to this repository on
+each run that records a new release, so the git history of this repo also
+holds the full database history.
+
+## The published database
+
+| Table | What it holds |
+|---|---|
+| `cso_tables` | The tracked tables |
+| `releases` | Every release observed; the first per table is the **baseline** |
+| `revisions` | Every value that changed between releases: old, new, change, % change |
+| `vintages` | Every value each period has held (baseline, first print, revisions) |
+| `first_vs_latest` | First printed value against the latest, for periods first published while tracking |
+| `observations` | Latest values |
+| `series`, `periods` | Labels, units and period start dates |
+
+Canned queries in Datasette: biggest revisions in the latest release, the
+history of a single value, the most-revised series, first print vs latest, and
+the release log.
+
+**What counts as a revision.** Only changes to a value that was already
+published. New periods are *first prints*. Everything already in the table on
+the first day of tracking is *baseline*, so the record of first prints and
+revisions starts from then; CSO doesn't expose earlier versions through its API.
+
+## Tracking another table
+
+Add it to `tables.yml`:
+
+```yaml
+  - id: ABC01          # the PxStat matrix code shown on data.cso.ie
+    title: Short title for the site
+    why: Short note shown on the site.
+```
+
+The parser is generic JSON-stat 2.0, so any PxStat table works.
+
+## Running locally
+
+Requires R with `targets`, `DBI`, `RSQLite`, `jsonlite`, `httr2`, `yaml`,
+`digest` and [`doltliter`](https://github.com/CathalByrneGit/doltliter):
+
+```r
+pak::pak(c("targets", "DBI", "RSQLite", "jsonlite", "httr2", "yaml", "digest",
+           "CathalByrneGit/doltliter"))
+targets::tar_make()
+```
+
+To run without the network, point the pipeline at a directory of JSON-stat
+files. The synthetic fixtures simulate three releases (a baseline, one that
+adds a month and revises six values, and one with no changes):
+
+```sh
+REVISIONS_SOURCE=tests/fixtures/release1 Rscript -e 'targets::tar_make()'
+REVISIONS_SOURCE=tests/fixtures/release2 Rscript -e 'targets::tar_make()'
+```
+
+Use `REVISIONS_DOLT=/tmp/test.doltlite` to keep a test run away from the real
+history. Then serve `site/` with any static server.
+
+Tests: `Rscript -e 'testthat::test_dir("tests/testthat")'`
+
+## First-time setup on GitHub
+
+1. **Settings → Pages → Source: GitHub Actions.**
+2. Run the **Update** workflow once from the Actions tab. The first run
+   records today's version of each table as the baseline.
+
+## Layout
+
+```
+_targets.R          pipeline definition
+tables.yml          tables to track
+R/pxstat.R          fetch + JSON-stat parser
+R/history.R         DoltLite commits, tags and history
+R/export.R          revisions classification + SQLite export
+R/datasette.R       Datasette metadata and canned queries
+site/index.html     static landing page
+tests/              testthat suite and synthetic fixtures
+```

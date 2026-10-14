@@ -1,0 +1,84 @@
+name: Update
+
+# CSO publishes at 11:00 Irish time on weekdays. Two runs a day catch the
+# release whatever the season (Irish time is UTC+1 in summer, UTC in winter).
+on:
+  schedule:
+    - cron: "23 11,15 * * 1-5"
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "R/**"
+      - "_targets.R"
+      - "tables.yml"
+      - "site/index.html"
+      - ".github/workflows/update.yml"
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: update
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    env:
+      LANG: C.UTF-8
+      GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: r-lib/actions/setup-r@v2
+        with:
+          use-public-rspm: true
+
+      - uses: r-lib/actions/setup-r-dependencies@v2
+        with:
+          packages: |
+            any::targets
+            any::DBI
+            any::RSQLite
+            any::jsonlite
+            any::httr2
+            any::yaml
+            any::digest
+            any::testthat
+            github::CathalByrneGit/doltliter
+
+      - name: Test
+        run: Rscript -e 'testthat::test_dir("tests/testthat", reporter = "summary", stop_on_failure = TRUE)'
+
+      - name: Fetch tables and record new releases
+        run: Rscript -e 'targets::tar_make()'
+
+      - name: Commit the DoltLite history
+        run: |
+          if [ -n "$(git status --porcelain data/cso.doltlite)" ]; then
+            git config user.name "revisions-bot"
+            git config user.email "revisions-bot@users.noreply.github.com"
+            git add data/cso.doltlite
+            msg=$(Rscript -e 's <- targets::tar_read(snapshot); s <- s[s$status == "committed", ]; cat(paste(s$tag, collapse = ", "))')
+            git commit -m "Record CSO releases: ${msg:-no new releases}"
+            git push
+          else
+            echo "No new releases."
+          fi
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+  deploy:
+    needs: update
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

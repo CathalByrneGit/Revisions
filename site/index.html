@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Revisions</title>
+<meta name="description" content="How CSO statistics change after they are first published.">
+<style>
+  :root {
+    --bg: #fbfaf7; --fg: #1d1c1a; --muted: #6b6760; --line: #e4e0d8;
+    --card: #ffffff; --accent: #1f6f5c; --up: #a23b2a; --down: #2b5ea7;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #151514; --fg: #ecebe7; --muted: #a29e96; --line: #2e2d2a;
+      --card: #1c1c1a; --accent: #5cc0a4; --up: #e4806e; --down: #7fa8e6;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--fg);
+         font: 16px/1.55 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; }
+  main { max-width: 960px; margin: 0 auto; padding: 40px 16px 64px; }
+  h1 { font: 600 2.2rem/1.1 Georgia, "Times New Roman", serif; margin: 0 0 8px; }
+  h2 { font-size: 1rem; text-transform: uppercase; letter-spacing: .06em;
+       color: var(--muted); margin: 40px 0 12px; font-weight: 600; }
+  p.lede { color: var(--muted); max-width: 60ch; margin: 0 0 20px; }
+  a { color: var(--accent); }
+  .btn { display: inline-block; background: var(--accent); color: var(--bg);
+         padding: 9px 16px; border-radius: 6px; text-decoration: none; font-weight: 600; }
+  .grid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 16px; }
+  .card h3 { margin: 0 0 4px; font-size: 1.05rem; }
+  .code { font: 12px ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--muted); }
+  .stats { display: flex; gap: 18px; margin-top: 10px; }
+  .stats b { display: block; font-size: 1.4rem; font-variant-numeric: tabular-nums; }
+  .stats span { font-size: .8rem; color: var(--muted); }
+  .table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 8px; background: var(--card); }
+  table { border-collapse: collapse; width: 100%; font-size: .9rem; }
+  th, td { text-align: left; padding: 8px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { font-weight: 600; color: var(--muted); font-size: .78rem; text-transform: uppercase; letter-spacing: .04em; }
+  tr:last-child td { border-bottom: 0; }
+  th.num, td.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  td.date { white-space: nowrap; }
+  .up { color: var(--up); } .down { color: var(--down); }
+  .empty { color: var(--muted); padding: 16px; }
+  footer { margin-top: 48px; color: var(--muted); font-size: .85rem; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Revisions</h1>
+  <p class="lede">Official statistics change after they are first published. This site
+    records every release of a set of CSO tables in a version-controlled database, so
+    you can see what moved, when, and by how much.</p>
+  <a class="btn" id="explore" href="#">Explore the data in Datasette</a>
+
+  <h2>Tracked tables</h2>
+  <div class="grid" id="tables"><div class="empty">Loading…</div></div>
+
+  <h2>Biggest revisions in the latest release</h2>
+  <div class="table-wrap"><table id="latest"><tbody><tr><td class="empty">Loading…</td></tr></tbody></table></div>
+
+  <h2>Release log</h2>
+  <div class="table-wrap"><table id="releases"><tbody><tr><td class="empty">Loading…</td></tr></tbody></table></div>
+
+  <footer>
+    Source: <a href="https://data.cso.ie">Central Statistics Office, Ireland</a> (CC BY 4.0).
+    Independent project, not affiliated with the CSO.
+    History stored in <a href="https://github.com/dolthub/doltlite">DoltLite</a>;
+    code at <a href="https://github.com/CathalByrneGit/Revisions">GitHub</a>.
+    <span id="generated"></span>
+  </footer>
+</main>
+<script>
+  const base = new URL('.', location.href).href;
+  const lite = (fragment) =>
+    'https://lite.datasette.io/?url=' + encodeURIComponent(base + 'revisions.db') +
+    '&metadata=' + encodeURIComponent(base + 'metadata.json') + '#/revisions' + (fragment || '');
+  document.getElementById('explore').href = lite();
+
+  const esc = (s) => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  const day = (s) => String(s || '').slice(0, 10);
+  const num = (x, d = 1) => x == null ? '–' : Number(x).toLocaleString('en-IE', {maximumFractionDigits: d});
+  const signed = (x) => x == null ? '–' : (x > 0 ? '+' : '') + num(x, 3);
+
+  fetch('summary.json').then(r => r.json()).then(s => {
+    document.getElementById('tables').innerHTML = s.tables.map(t => `
+      <div class="card">
+        <h3><a href="${lite('/cso_tables/' + encodeURIComponent(t.table_id))}">${esc(t.title)}</a></h3>
+        <div class="code">${esc(t.table_id)} · latest release ${day(t.latest_release)}</div>
+        <div class="stats">
+          <div><b>${t.n_releases}</b><span>releases</span></div>
+          <div><b>${t.n_revisions}</b><span>revisions</span></div>
+          <div><b>${t.n_series}</b><span>series</span></div>
+        </div>
+      </div>`).join('');
+
+    const rows = Object.entries(s.latest_revisions || {}).flatMap(([id, rs]) => rs.map(r => ({id, ...r})));
+    rows.sort((a, b) => Math.abs(b.pct_change ?? 0) - Math.abs(a.pct_change ?? 0));
+    document.getElementById('latest').innerHTML = rows.length ? `
+      <thead><tr><th>Series</th><th>Period</th><th class="num">Was</th><th class="num">Now</th><th class="num">Change</th><th>Release</th></tr></thead>
+      <tbody>${rows.slice(0, 15).map(r => `
+        <tr><td>${esc(r.label)}</td><td>${esc(r.period_label)}</td>
+          <td class="num">${num(r.old_value, 3)}</td><td class="num">${num(r.new_value, 3)}</td>
+          <td class="num ${r.change > 0 ? 'up' : 'down'}">${signed(r.change)}${r.pct_change == null ? '' : ` <span class="code">(${signed(r.pct_change)}%)</span>`}</td>
+          <td class="date">${day(r.release)}</td></tr>`).join('')}</tbody>`
+      : '<tbody><tr><td class="empty">No revisions yet. They appear once CSO republishes a tracked table.</td></tr></tbody>';
+
+    const rel = [...s.releases].sort((a, b) => (b.release > a.release ? 1 : -1));
+    document.getElementById('releases').innerHTML = `
+      <thead><tr><th>Release</th><th>Table</th><th class="num">New periods</th><th class="num">Revised</th><th class="num">Removed</th></tr></thead>
+      <tbody>${rel.map(r => `
+        <tr><td class="date">${day(r.release)}</td><td>${esc(r.table_id)}</td>
+          <td class="num">${r.is_baseline ? 'baseline' : r.n_new_periods}</td>
+          <td class="num">${r.n_revised}</td><td class="num">${r.n_removed}</td></tr>`).join('')}</tbody>`;
+    document.getElementById('generated').textContent = ' Updated ' + day(s.generated_at) + '.';
+  }).catch(() => {
+    document.getElementById('tables').innerHTML = '<div class="empty">No data published yet.</div>';
+  });
+</script>
+</body>
+</html>

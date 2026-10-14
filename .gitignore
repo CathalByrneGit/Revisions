@@ -1,0 +1,15 @@
+# targets cache and raw downloads (rebuilt each run)
+_targets/
+data/raw/
+
+# DoltLite lock files
+*-lock
+
+# Generated site files (built by the pipeline, deployed by Actions)
+site/revisions.db
+site/summary.json
+site/metadata.json
+
+.Rhistory
+.RData
+.Rproj.user/

@@ -1,0 +1,15 @@
+# CSO tables to track.
+#
+# Each entry is a PxStat matrix code. The pipeline fetches it as JSON-stat 2.0
+# from the CSO API, and every time CSO publishes a new version it becomes a
+# commit (and a tag) in data/cso.doltlite.
+#
+# To track another table, add an entry here. Find codes at
+# https://data.cso.ie (the code is shown on each table's page).
+
+tables:
+  - id: MUM01
+    title: Monthly unemployment
+    why: >
+      Seasonally adjusted series are re-estimated every month, so recent
+      months are revised regularly. A good first test of the pipeline.
