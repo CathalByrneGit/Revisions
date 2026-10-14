@@ -97,6 +97,9 @@ jobs:
             git add data/cso.doltlite
             msg=$(Rscript -e 's <- targets::tar_read(snapshot); s <- s[s$status == "committed", ]; cat(paste(s$tag, collapse = ", "))')
             git commit -m "Record CSO releases: ${msg:-no new releases}"
+            # main may have moved while the pipeline ran; only the bot touches
+            # the DoltLite file, so rebasing onto it is safe.
+            git pull --rebase origin main
             git push
           else
             echo "No new releases."
