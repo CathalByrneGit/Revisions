@@ -11,6 +11,10 @@
 # base 2021), and the old one simply stops updating. If a table's latest
 # release on the site is months old, look for its successor. Tables removed
 # from this list keep their history in data/cso.doltlite but drop off the site.
+#
+# `publish` (optional) limits which statistics go on the site. Everything is
+# still recorded in the history; this keeps the published database small by
+# leaving out series derived from others (percentage changes of an index).
 
 tables:
   - id: MUM01
@@ -27,24 +31,28 @@ tables:
 
   - id: EHQ03
     title: Earnings, hours and labour costs
+    publish: [EHQ03C01, EHQ03C02, EHQ03S2, EHQ03C03, EHQ03S3]
     why: >
       EHECS publishes a preliminary estimate for the latest quarter and a
       final one for the quarter before, so each release revises the last.
 
   - id: RSM08
     title: Retail sales index
+    publish: [RSM08C01, RSM08C02, RSM08C03, RSM08C04]
     why: >
       Monthly retail sales are revised as late survey returns come in and
       seasonal factors are re-estimated.
 
   - id: HPM09
     title: Residential property price index
+    publish: [HPM09C01]
     why: >
       Built from stamp duty filings, which can arrive months after a sale,
       so recent index values are revised as late transactions are added.
 
   - id: CPM24
     title: Consumer price index
+    publish: [CPM24C01]
     why: >
       CPI is almost never revised, which makes it the control: any change
       here would be unusual and worth a closer look.

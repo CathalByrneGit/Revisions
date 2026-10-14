@@ -92,8 +92,13 @@ Add it to `tables.yml`:
 ```yaml
   - id: ABC01          # the PxStat matrix code shown on data.cso.ie
     title: Short title for the site
+    publish: [ABC01C01]  # optional: statistics to put on the site (default all)
     why: Short note shown on the site.
 ```
+
+Every statistic is recorded in the DoltLite history; `publish` only trims the
+site, which keeps the in-browser database small (about 7 MB, 1 MB gzipped,
+for the six tables above).
 
 The parser is generic JSON-stat 2.0, so any PxStat table works.
 

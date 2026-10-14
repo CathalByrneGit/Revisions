@@ -73,3 +73,17 @@ test_that("tables dropped from the config are left out of the export", {
   on.exit(DBI::dbDisconnect(con))
   expect_equal(DBI::dbGetQuery(con, "select count(*) n from observations")$n, 0)
 })
+
+test_that("publish limits the statistics on the site", {
+  db <- tempfile(fileext = ".doltlite")
+  record(db, "release1", "release2")
+  out <- file.path(tempfile(), "revisions.db")
+  cfg <- data.frame(table_id = "MUM01", title = "x", why = NA_character_,
+                    publish = "MUM01C02")
+  export_sqlite(read_history(db), out, cfg)
+  con <- DBI::dbConnect(RSQLite::SQLite(), out)
+  on.exit(DBI::dbDisconnect(con))
+  expect_equal(DBI::dbGetQuery(con, "select distinct statistic from series")$statistic, "MUM01C02")
+  # Of the six fixture revisions, three are to the rate (MUM01C02).
+  expect_equal(DBI::dbGetQuery(con, "select count(*) n from revisions")$n, 3)
+})

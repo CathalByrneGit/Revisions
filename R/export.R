@@ -91,12 +91,7 @@ derive_revisions <- function(history) {
 export_sqlite <- function(history, path = "site/revisions.db", tables_cfg = NULL) {
   # Only publish tables that are still configured. Dropped tables (e.g. one
   # CSO replaced with a rebased successor) keep their history in DoltLite.
-  if (!is.null(tables_cfg)) {
-    keep <- function(df) df[df$table_id %in% tables_cfg$table_id, , drop = FALSE]
-    for (nm in c("releases", "changes", "observations", "series", "periods")) {
-      history[[nm]] <- keep(history[[nm]])
-    }
-  }
+  history <- filter_published(history, tables_cfg)
   # Recompute start dates so parser improvements apply to releases recorded
   # before them, without rewriting history.
   history$periods$period_start <- as.character(period_start(history$periods$period))
