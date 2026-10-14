@@ -9,7 +9,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   probe:
@@ -53,7 +53,8 @@ jobs:
         run: |
           python - <<'EOF'
           from playwright.sync_api import sync_playwright
-          import os, urllib.parse
+          import os, json, urllib.parse
+          results = {}
           db = urllib.parse.quote("http://127.0.0.1:8000/probe.db", safe="")
           variants = {
               "baseline": "",
@@ -74,7 +75,10 @@ jobs:
                   page.on("pageerror", lambda e: errors.append(str(e)[:200]))
                   page.on("console", lambda m: errors.append(m.text[:200]) if m.type == "error" else None)
                   url = f"https://lite.datasette.io/?url={db}{extra}#/probe/series"
-                  page.goto(url, timeout=120000)
+                  try:
+                      page.goto(url, timeout=120000)
+                  except Exception as e:
+                      errors.append("goto: " + str(e)[:200])
                   try:
                       page.wait_for_selector("table.rows-and-columns", timeout=150000)
                       loaded = True
@@ -85,16 +89,26 @@ jobs:
                   found = {k: [m for m in ms if m in html] for k, ms in markers.items()}
                   svgs = page.locator("svg").count()
                   canvases = page.locator("canvas").count()
-                  version = page.evaluate("() => (document.querySelector('footer') || document.body).innerText.slice(-300)")
+                  try:
+                      version = page.evaluate("() => document.body.innerText.slice(-400)")
+                  except Exception as e:
+                      version = str(e)[:200]
                   page.screenshot(path=f"shots/{name}.png", full_page=True)
-                  print(f"=== {name}\n  table loaded: {loaded}\n  plugin markers: {found}\n"
-                        f"  svg: {svgs}  canvas: {canvases}\n  errors: {errors[:5]}\n"
-                        f"  footer: {version!r}")
+                  results[name] = dict(url=url, table_loaded=loaded, plugin_markers=found,
+                                       svg=svgs, canvas=canvases, errors=errors[:8], tail=version)
+                  print(name, results[name])
               b.close()
+          json.dump(results, open("shots/results.json", "w"), indent=2)
           EOF
 
-      - uses: actions/upload-artifact@v4
+      # Logs are hard to read from outside Actions, so the results are also
+      # pushed to a throwaway branch.
+      - name: Push results to the probe-results branch
         if: always()
-        with:
-          name: datasette-lite-probe
-          path: shots
+        run: |
+          cd shots
+          git init -q -b probe-results
+          git add -A
+          git -c user.name=revisions-bot -c user.email=revisions-bot@users.noreply.github.com commit -qm "Datasette Lite plugin probe"
+          git push -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" probe-results
+
