@@ -25,6 +25,18 @@ jobs:
           pip install playwright
           python -m playwright install --with-deps chromium
 
+      - name: Check the published database is reachable
+        run: |
+          mkdir -p shots
+          owner=$(echo "${GITHUB_REPOSITORY%%/*}" | tr '[:upper:]' '[:lower:]')
+          repo="${GITHUB_REPOSITORY##*/}"
+          for u in "https://$owner.github.io/$repo/" "https://$owner.github.io/$repo/revisions.db" \
+                   "https://$owner.github.io/$(echo $repo | tr '[:upper:]' '[:lower:]')/revisions.db"; do
+            echo "== $u" >> shots/http.txt
+            curl -sSI -H "Origin: https://lite.datasette.io" "$u" >> shots/http.txt 2>&1 || true
+          done
+          cat shots/http.txt
+
       - name: Probe
         run: |
           python - <<'EOF'
