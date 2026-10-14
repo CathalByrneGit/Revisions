@@ -1,0 +1,62 @@
+{
+  "baseline": {
+    "url": "https://lite.datasette.io/?url=https%3A%2F%2Fcathalbyrnegit.github.io%2FRevisions%2Frevisions.db#/revisions/observations_labelled?table_id=MUM01&_size=50",
+    "table_loaded": true,
+    "plugin_markers": {
+      "vega": [],
+      "plot": []
+    },
+    "svg": 1,
+    "canvas": 0,
+    "errors": [
+      "Failed to load resource: the server responded with a status of 404 ()"
+    ],
+    "tail": "am all rows \n\nCREATE VIEW observations_labelled AS\n    SELECT o.table_id, s.label, o.period, p.period_start, o.value, s.unit, o.series_key\n    FROM observations o\n    JOIN series s USING (table_id, series_key)\n    JOIN periods p USING (table_id, period);\nPowered by Datasette \u00b7 Queries took 235.7ms \u00b7 About: Datasette Lite\n\nLoad SQLite DB by URL Load CSV Load JSON Load Parquet Load SQL Documentation"
+  },
+  "vega": {
+    "url": "https://lite.datasette.io/?url=https%3A%2F%2Fcathalbyrnegit.github.io%2FRevisions%2Frevisions.db&install=datasette-vega#/revisions/observations_labelled?table_id=MUM01&_size=50",
+    "table_loaded": true,
+    "plugin_markers": {
+      "vega": [
+        "vega"
+      ],
+      "plot": []
+    },
+    "svg": 1,
+    "canvas": 0,
+    "errors": [
+      "Failed to load resource: the server responded with a status of 404 ()",
+      "Failed to load resource: the server responded with a status of 404 ()"
+    ],
+    "tail": "am all rows \n\nCREATE VIEW observations_labelled AS\n    SELECT o.table_id, s.label, o.period, p.period_start, o.value, s.unit, o.series_key\n    FROM observations o\n    JOIN series s USING (table_id, series_key)\n    JOIN periods p USING (table_id, period);\nPowered by Datasette \u00b7 Queries took 229.3ms \u00b7 About: Datasette Lite\n\nLoad SQLite DB by URL Load CSV Load JSON Load Parquet Load SQL Documentation"
+  },
+  "plot": {
+    "url": "https://lite.datasette.io/?url=https%3A%2F%2Fcathalbyrnegit.github.io%2FRevisions%2Frevisions.db&install=datasette-plot#/revisions/observations_labelled?table_id=MUM01&_size=50",
+    "table_loaded": false,
+    "plugin_markers": {
+      "vega": [],
+      "plot": []
+    },
+    "svg": 1,
+    "canvas": 0,
+    "errors": [],
+    "tail": "nner\n    satisfied, ver = self.check_version_satisfied(req)\n                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/lib/python3.12/site-packages/micropip/transaction.py\", line 86, in check_version_satisfied\n    raise ValueError(\nValueError: Requested 'datasette>=1.0a6', but datasette==0.65.5 is already installed\n\n\nLoad SQLite DB by URL Load CSV Load JSON Load Parquet Load SQL Documentation"
+  },
+  "plot-ref-1.0a": {
+    "url": "https://lite.datasette.io/?url=https%3A%2F%2Fcathalbyrnegit.github.io%2FRevisions%2Frevisions.db&install=datasette-plot&ref=1.0a17#/revisions/observations_labelled?table_id=MUM01&_size=50",
+    "table_loaded": true,
+    "plugin_markers": {
+      "vega": [],
+      "plot": [
+        "datasette-plot"
+      ]
+    },
+    "svg": 1,
+    "canvas": 0,
+    "errors": [
+      "Failed to load resource: the server responded with a status of 404 ()",
+      "Failed to load resource: the server responded with a status of 404 ()"
+    ],
+    "tail": "ions:  download file  stream all rows \n\nCREATE VIEW observations_labelled AS\n    SELECT o.table_id, s.label, o.period, p.period_start, o.value, s.unit, o.series_key\n    FROM observations o\n    JOIN series s USING (table_id, series_key)\n    JOIN periods p USING (table_id, period);\nPowered by Datasette \u00b7 Queries took 1.2ms\n\nLoad SQLite DB by URL Load CSV Load JSON Load Parquet Load SQL Documentation"
+  }
+}
