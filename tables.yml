@@ -13,3 +13,33 @@ tables:
     why: >
       Seasonally adjusted series are re-estimated every month, so recent
       months are revised regularly. A good first test of the pipeline.
+
+  - id: NAQ03
+    title: GDP and GNP (quarterly)
+    why: >
+      Quarterly national accounts are published as preliminary estimates and
+      revised as fuller data arrives, so early growth figures can move a lot.
+
+  - id: EHQ03
+    title: Earnings, hours and labour costs
+    why: >
+      EHECS publishes a preliminary estimate for the latest quarter and a
+      final one for the quarter before, so each release revises the last.
+
+  - id: RSM05
+    title: Retail sales index
+    why: >
+      Monthly retail sales are revised as late survey returns come in and
+      seasonal factors are re-estimated.
+
+  - id: HPM09
+    title: Residential property price index
+    why: >
+      Built from stamp duty filings, which can arrive months after a sale,
+      so recent index values are revised as late transactions are added.
+
+  - id: CPM01
+    title: Consumer price index
+    why: >
+      CPI is almost never revised, which makes it the control: any change
+      here would be unusual and worth a closer look.

@@ -1,0 +1,100 @@
+name: Probe Datasette Lite chart plugins
+
+# One-off experiment: does Datasette Lite load charting plugins' JavaScript?
+# Opens Datasette Lite in headless Chromium against a tiny time-series
+# database, once per variant, and reports whether each plugin's UI appears.
+# Screenshots are uploaded as an artifact.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Playwright
+        run: |
+          pip install playwright
+          python -m playwright install --with-deps chromium
+
+      - name: Build a test database and serve it with CORS
+        run: |
+          mkdir -p www
+          python - <<'EOF'
+          import sqlite3, datetime
+          c = sqlite3.connect("www/probe.db")
+          c.execute("create table series (period_start text, value real, kind text)")
+          d = datetime.date(2024, 1, 1)
+          for i in range(24):
+              c.execute("insert into series values (?, ?, 'latest')",
+                        (d.replace(year=2024 + (i // 12), month=i % 12 + 1).isoformat(), 4 + i * 0.05))
+          c.commit()
+          EOF
+          cat > serve.py <<'EOF'
+          import http.server, functools
+          class H(http.server.SimpleHTTPRequestHandler):
+              def end_headers(self):
+                  self.send_header("Access-Control-Allow-Origin", "*")
+                  super().end_headers()
+          http.server.ThreadingHTTPServer(("127.0.0.1", 8000),
+              functools.partial(H, directory="www")).serve_forever()
+          EOF
+          nohup python serve.py > serve.log 2>&1 &
+          sleep 2 && curl -sI http://127.0.0.1:8000/probe.db | head -3
+
+      - name: Probe
+        run: |
+          python - <<'EOF'
+          from playwright.sync_api import sync_playwright
+          import os, urllib.parse
+          db = urllib.parse.quote("http://127.0.0.1:8000/probe.db", safe="")
+          variants = {
+              "baseline": "",
+              "vega": "&install=datasette-vega",
+              "plot": "&install=datasette-plot",
+              "plot-ref-1.0a": "&install=datasette-plot&ref=1.0a17",
+          }
+          markers = {
+              "vega": ["Show charting options", "Hide charting options", "vega"],
+              "plot": ["Show plot", "Hide plot", "datasette-plot"],
+          }
+          os.makedirs("shots", exist_ok=True)
+          with sync_playwright() as p:
+              b = p.chromium.launch()
+              for name, extra in variants.items():
+                  page = b.new_page(viewport={"width": 1200, "height": 900})
+                  errors = []
+                  page.on("pageerror", lambda e: errors.append(str(e)[:200]))
+                  page.on("console", lambda m: errors.append(m.text[:200]) if m.type == "error" else None)
+                  url = f"https://lite.datasette.io/?url={db}{extra}#/probe/series"
+                  page.goto(url, timeout=120000)
+                  try:
+                      page.wait_for_selector("table.rows-and-columns", timeout=150000)
+                      loaded = True
+                  except Exception:
+                      loaded = False
+                  page.wait_for_timeout(8000)
+                  html = page.content()
+                  found = {k: [m for m in ms if m in html] for k, ms in markers.items()}
+                  svgs = page.locator("svg").count()
+                  canvases = page.locator("canvas").count()
+                  version = page.evaluate("() => (document.querySelector('footer') || document.body).innerText.slice(-300)")
+                  page.screenshot(path=f"shots/{name}.png", full_page=True)
+                  print(f"=== {name}\n  table loaded: {loaded}\n  plugin markers: {found}\n"
+                        f"  svg: {svgs}  canvas: {canvases}\n  errors: {errors[:5]}\n"
+                        f"  footer: {version!r}")
+              b.close()
+          EOF
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: datasette-lite-probe
+          path: shots

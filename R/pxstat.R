@@ -22,23 +22,43 @@ fetch_pxstat <- function(table_id, raw_dir = "data/raw") {
   source_dir <- Sys.getenv("REVISIONS_SOURCE")
   if (nzchar(source_dir)) {
     src <- file.path(source_dir, paste0(table_id, ".json"))
-    if (!file.exists(src)) stop("no fixture for ", table_id, " in ", source_dir)
-    file.copy(src, dest, overwrite = TRUE)
+    if (file.exists(src)) {
+      file.copy(src, dest, overwrite = TRUE)
+    } else {
+      jsonlite::write_json(
+        list(class = "error", table_id = table_id,
+             error = paste("no fixture in", source_dir)),
+        dest, auto_unbox = TRUE
+      )
+    }
     return(dest)
   }
 
   tmp <- tempfile(fileext = ".json")
-  req <- httr2::request(pxstat_url(table_id)) |>
-    httr2::req_user_agent("Revisions (https://github.com/CathalByrneGit/Revisions)") |>
-    httr2::req_retry(max_tries = 4, backoff = function(i) 5 * i) |>
-    httr2::req_timeout(120)
-  httr2::req_perform(req, path = tmp)
-  # Sanity check before replacing the previous download.
-  js <- jsonlite::read_json(tmp, simplifyVector = FALSE)
-  if (!identical(js$class, "dataset")) stop(table_id, ": response is not a JSON-stat dataset")
+  ok <- tryCatch({
+    req <- httr2::request(pxstat_url(table_id)) |>
+      httr2::req_user_agent("Revisions (https://github.com/CathalByrneGit/Revisions)") |>
+      httr2::req_retry(max_tries = 4, backoff = function(i) 5 * i) |>
+      httr2::req_timeout(300)
+    httr2::req_perform(req, path = tmp)
+    js <- jsonlite::read_json(tmp, simplifyVector = FALSE)
+    if (!identical(js$class, "dataset")) stop("response is not a JSON-stat dataset")
+    TRUE
+  }, error = function(e) {
+    # One unreachable or mistyped table must not stop the others: write a
+    # marker the later steps recognise and skip.
+    warning(table_id, ": fetch failed: ", conditionMessage(e), call. = FALSE)
+    jsonlite::write_json(
+      list(class = "error", table_id = table_id, error = conditionMessage(e)),
+      tmp, auto_unbox = TRUE
+    )
+    FALSE
+  })
   file.copy(tmp, dest, overwrite = TRUE)
   dest
 }
+
+fetch_failed <- function(parsed) !is.null(parsed$error)
 
 # JSON-stat allows a category index to be an array of codes or an object of
 # code -> position. Return codes in position order.
@@ -60,6 +80,9 @@ jsonstat_codes <- function(index) {
 #' stable across releases even if CSO tweaks a label.
 parse_jsonstat <- function(path, table_id = sub("\\.json$", "", basename(path))) {
   js <- jsonlite::read_json(path, simplifyVector = FALSE)
+  if (identical(js$class, "error")) {
+    return(list(table_id = table_id, error = js$error))
+  }
   ids <- unlist(js$id)
   sizes <- unlist(js$size)
   time_id <- unlist(js$role$time)

@@ -48,13 +48,46 @@ jobs:
             any::yaml
             any::digest
             any::testthat
+            any::withr
             github::CathalByrneGit/doltliter
+            github::CathalByrneGit/tardoc
 
       - name: Test
         run: Rscript -e 'testthat::test_dir("tests/testthat", reporter = "summary", stop_on_failure = TRUE)'
 
       - name: Fetch tables and record new releases
         run: Rscript -e 'targets::tar_make()'
+
+      - name: Report each table
+        run: |
+          Rscript -e '
+            s <- targets::tar_read(snapshot)
+            for (i in seq_len(nrow(s))) {
+              line <- sprintf("%s: %s %s", s$table_id[i], s$status[i], ifelse(is.na(s$release[i]), "", s$release[i]))
+              if (startsWith(s$status[i], "fetch failed")) cat("::warning::", line, "\n", sep = "") else cat(line, "\n")
+            }
+            db <- DBI::dbConnect(RSQLite::SQLite(), "site/revisions.db")
+            print(DBI::dbGetQuery(db, "select table_id, n_releases, n_series, n_revisions from cso_tables"))
+            cat("revisions.db:", round(file.size("site/revisions.db") / 1e6, 1), "MB\n")
+          '
+
+      # Pipeline documentation, generated from _targets.R, the roxygen comments
+      # in R/ and the hand-written notes in tardoc/notes/. Published at /docs/.
+      - name: Document the pipeline with tardoc
+        run: |
+          tardoc::document_targets(
+            pkg_name = "Revisions",
+            pkg_desc = paste(
+              "Tracks how CSO statistics change between releases: each new",
+              "release is committed to a DoltLite database and every change",
+              "is classified as a first print, revision or removal."
+            ),
+            repo_url = paste0("https://github.com/", Sys.getenv("GITHUB_REPOSITORY"), "/blob/main/")
+          )
+          dir.create("site/docs", showWarnings = FALSE)
+          file.copy(list.files("tardoc", full.names = TRUE), "site/docs", recursive = TRUE)
+          file.copy("tardoc/viewer.html", "site/docs/index.html", overwrite = TRUE)
+        shell: Rscript {0}
 
       - name: Commit the DoltLite history
         run: |

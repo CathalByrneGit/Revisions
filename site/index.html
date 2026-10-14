@@ -44,6 +44,30 @@
   .up { color: var(--up); } .down { color: var(--down); }
   .empty { color: var(--muted); padding: 16px; }
   footer { margin-top: 48px; color: var(--muted); font-size: .85rem; }
+  .btns { display: flex; gap: 10px; flex-wrap: wrap; }
+  .btn.secondary { background: transparent; color: var(--accent); border: 1px solid var(--accent); }
+
+  /* Series explorer. Chart colours are the validated pair from the
+     dataviz reference palette (slot 1 blue, slot 2 orange), stepped per mode. */
+  .viz-root { --series-latest: #2a78d6; --series-earlier: #eb6834; --grid: #e4e0d8; }
+  @media (prefers-color-scheme: dark) {
+    .viz-root { --series-latest: #3987e5; --series-earlier: #d95926; --grid: #2e2d2a; }
+  }
+  .controls { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
+  .controls label { display: flex; flex-direction: column; gap: 4px; font-size: .78rem;
+                    color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+  .controls select { font: inherit; font-size: .9rem; color: var(--fg); background: var(--card);
+                     border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px;
+                     max-width: 100%; text-transform: none; letter-spacing: 0; }
+  .controls label.grow { flex: 1 1 320px; min-width: 0; }
+  .controls label.grow select { width: 100%; }
+  .legend { display: flex; gap: 16px; font-size: .85rem; color: var(--muted); margin: 4px 0 8px; flex-wrap: wrap; }
+  .legend i { display: inline-block; vertical-align: middle; margin-right: 6px; }
+  .legend .line { width: 18px; height: 2px; background: var(--series-latest); }
+  .legend .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--series-earlier); }
+  #chart { min-height: 320px; }
+  #chart svg { max-width: 100%; height: auto; overflow: visible; }
+  .note { color: var(--muted); font-size: .85rem; margin: 8px 0 0; }
 </style>
 </head>
 <body>
@@ -52,7 +76,30 @@
   <p class="lede">Official statistics change after they are first published. This site
     records every release of a set of CSO tables in a version-controlled database, so
     you can see what moved, when, and by how much.</p>
-  <a class="btn" id="explore" href="#">Explore the data in Datasette</a>
+  <div class="btns">
+    <a class="btn" id="explore" href="#">Explore the data in Datasette</a>
+    <a class="btn secondary" href="docs/">How the pipeline works</a>
+  </div>
+
+  <h2>Revisions explorer</h2>
+  <div class="card viz-root">
+    <div class="controls">
+      <label>Table <select id="pick-table"></select></label>
+      <label class="grow">Series <select id="pick-series"></select></label>
+      <label>Range <select id="pick-range">
+        <option value="24">Last 24 periods</option>
+        <option value="60">Last 60 periods</option>
+        <option value="0">All</option>
+      </select></label>
+    </div>
+    <div class="legend">
+      <span><i class="line"></i>Latest published value</span>
+      <span><i class="dot"></i>Earlier published value, before a revision</span>
+    </div>
+    <div id="chart"><div class="empty">Loading the database…</div></div>
+    <p class="note" id="chart-note"></p>
+    <div class="table-wrap" style="margin-top:12px"><table id="series-revisions"><tbody></tbody></table></div>
+  </div>
 
   <h2>Tracked tables</h2>
   <div class="grid" id="tables"><div class="empty">Loading…</div></div>
@@ -117,6 +164,132 @@
   }).catch(() => {
     document.getElementById('tables').innerHTML = '<div class="empty">No data published yet.</div>';
   });
+</script>
+<script src="vendor/d3.min.js"></script>
+<script src="vendor/plot.umd.min.js"></script>
+<script src="vendor/sql-wasm.js"></script>
+<script>
+(async () => {
+  const $ = (id) => document.getElementById(id);
+  const chartEl = $('chart'), note = $('chart-note');
+  const pickTable = $('pick-table'), pickSeries = $('pick-series'), pickRange = $('pick-range');
+  const esc = (s) => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  const day = (s) => String(s || '').slice(0, 10);
+  const fmt = (x) => x == null ? '–' : Number(x).toLocaleString('en-IE', {maximumFractionDigits: 3});
+  const signed = (x) => x == null ? '–' : (x > 0 ? '+' : '') + fmt(x);
+
+  let db;
+  try {
+    const SQL = await initSqlJs({ locateFile: (f) => 'vendor/' + f });
+    const res = await fetch('revisions.db');
+    if (!res.ok) throw new Error(res.status);
+    db = new SQL.Database(new Uint8Array(await res.arrayBuffer()));
+  } catch (e) {
+    chartEl.innerHTML = '<div class="empty">No data published yet.</div>';
+    return;
+  }
+  const q = (sql, params = []) => {
+    const st = db.prepare(sql); st.bind(params);
+    const out = []; while (st.step()) out.push(st.getAsObject());
+    st.free(); return out;
+  };
+
+  const tables = q(`select table_id, title, n_revisions from cso_tables
+                    order by n_revisions desc, table_id`);
+  pickTable.innerHTML = tables.map(t =>
+    `<option value="${esc(t.table_id)}">${esc(t.title)} (${t.n_revisions} revisions)</option>`).join('');
+
+  function loadSeries() {
+    const rows = q(`select s.series_key, s.label, count(r.period) as n
+                    from series s left join revisions r using (table_id, series_key)
+                    where s.table_id = ? group by s.series_key
+                    order by n desc, s.label`, [pickTable.value]);
+    pickSeries.innerHTML = rows.map(s =>
+      `<option value="${esc(s.series_key)}">${esc(s.label)}${s.n ? ` · ${s.n} revisions` : ''}</option>`).join('');
+  }
+
+  function colours() {
+    const cs = getComputedStyle(document.querySelector('.viz-root'));
+    const v = (n) => cs.getPropertyValue(n).trim();
+    return { latest: v('--series-latest'), earlier: v('--series-earlier'),
+             card: v('--card'), muted: v('--muted'), grid: v('--grid') };
+  }
+
+  function render() {
+    const tid = pickTable.value, key = pickSeries.value;
+    if (!tid || !key) return;
+    const unit = (q('select unit from series where table_id = ? and series_key = ?', [tid, key])[0] || {}).unit || '';
+    let obs = q(`select o.period, p.period_label, p.period_start, o.value
+                 from observations o join periods p using (table_id, period)
+                 where o.table_id = ? and o.series_key = ? and p.period_start is not null
+                   and o.value is not null
+                 order by p.period_start`, [tid, key]);
+    const n = Number(pickRange.value);
+    if (n) obs = obs.slice(-n);
+    const from = obs.length ? obs[0].period_start : '';
+    const revs = q(`select period, period_label, period_start, release, old_value, new_value,
+                           change, pct_change
+                    from revisions where table_id = ? and series_key = ?
+                      and period_start >= ? and old_value is not null
+                    order by period_start, release`, [tid, key, from]);
+    obs.forEach(d => d.date = new Date(d.period_start));
+    revs.forEach(d => d.date = new Date(d.period_start));
+
+    const c = colours();
+    // One tooltip over both layers, so only the nearest point is described.
+    const points = [
+      ...obs.map(d => ({ date: d.date, y: d.value,
+        text: `${d.period_label}\n${fmt(d.value)} ${unit}\nLatest published value` })),
+      ...revs.map(d => ({ date: d.date, y: d.old_value,
+        text: `${d.period_label}\nWas ${fmt(d.old_value)}, now ${fmt(d.new_value)} ${unit}\n` +
+              `Change ${signed(d.change)}${d.pct_change == null ? '' : ` (${signed(d.pct_change)}%)`}\n` +
+              `Revised in the ${day(d.release)} release` }))
+    ];
+
+    const plot = Plot.plot({
+      width: Math.max(300, chartEl.clientWidth), height: 320,
+      marginLeft: 56, marginRight: 16,
+      style: { background: 'transparent', color: c.muted, fontSize: '12px' },
+      x: { type: 'utc', label: null },
+      y: { label: unit || null, grid: true, nice: true, zero: false },
+      marks: [
+        Plot.link(revs, { x1: 'date', x2: 'date', y1: 'old_value', y2: 'new_value',
+                          stroke: c.earlier, strokeWidth: 1.5, strokeOpacity: 0.7 }),
+        Plot.lineY(obs, { x: 'date', y: 'value', stroke: c.latest, strokeWidth: 2 }),
+        Plot.dot(revs, { x: 'date', y: 'old_value', r: 4.5, fill: c.earlier,
+                         stroke: c.card, strokeWidth: 2 }),
+        Plot.ruleX(points, Plot.pointer({ x: 'date', px: 'date', py: 'y', stroke: c.muted, strokeOpacity: 0.4 })),
+        Plot.tip(points, Plot.pointer({ x: 'date', y: 'y', title: 'text' }))
+      ]
+    });
+    chartEl.replaceChildren(plot);
+
+    const all = q(`select count(*) as n, min(release) as first from releases where table_id = ?`, [tid])[0];
+    const nrev = q(`select count(*) as n from revisions where table_id = ? and series_key = ?`, [tid, key])[0].n;
+    note.textContent = all.n <= 1
+      ? `Tracking began with the ${day(all.first)} release. Revisions appear here once CSO republishes this table.`
+      : `${nrev} revision${nrev === 1 ? '' : 's'} to this series across ${all.n} releases since ${day(all.first)}.` +
+        (revs.length < nrev ? ' Widen the range to see older ones.' : '');
+
+    const rows = q(`select period_label, release, old_value, new_value, change, pct_change
+                    from revisions where table_id = ? and series_key = ?
+                    order by release desc, period_start desc limit 50`, [tid, key]);
+    $('series-revisions').innerHTML = rows.length ? `
+      <thead><tr><th>Period</th><th class="num">Was</th><th class="num">Now</th><th class="num">Change</th><th>Release</th></tr></thead>
+      <tbody>${rows.map(r => `<tr><td>${esc(r.period_label)}</td>
+        <td class="num">${fmt(r.old_value)}</td><td class="num">${fmt(r.new_value)}</td>
+        <td class="num ${r.change > 0 ? 'up' : 'down'}">${signed(r.change)}${r.pct_change == null ? '' : ` <span class="code">(${signed(r.pct_change)}%)</span>`}</td>
+        <td class="date">${day(r.release)}</td></tr>`).join('')}</tbody>`
+      : '<tbody><tr><td class="empty">No revisions to this series yet.</td></tr></tbody>';
+  }
+
+  pickTable.addEventListener('change', () => { loadSeries(); render(); });
+  pickSeries.addEventListener('change', render);
+  pickRange.addEventListener('change', render);
+  let t; addEventListener('resize', () => { clearTimeout(t); t = setTimeout(render, 150); });
+  matchMedia('(prefers-color-scheme: dark)').addEventListener('change', render);
+  loadSeries(); render();
+})();
 </script>
 </body>
 </html>

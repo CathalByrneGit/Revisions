@@ -12,6 +12,18 @@ test_that("a release is committed and tagged once", {
   expect_equal(a$tag, "MUM01/2026-07-02T110000Z")
 })
 
+test_that("a failed fetch is reported and skipped, not fatal", {
+  withr::local_envvar(REVISIONS_SOURCE = file.path(root, "tests", "fixtures", "release1"))
+  dir <- tempfile()
+  path <- fetch_pxstat("NOPE01", dir)
+  p <- parse_jsonstat(path)
+  expect_true(fetch_failed(p))
+  db <- tempfile(fileext = ".doltlite")
+  s <- commit_release(p, db)
+  expect_match(s$status, "^fetch failed")
+  expect_false(file.exists(db))
+})
+
 test_that("revisions, first prints and baseline are classified", {
   db <- tempfile(fileext = ".doltlite")
   record(db, "release1", "release2", "release3")

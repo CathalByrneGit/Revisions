@@ -9,6 +9,12 @@ data/raw/
 site/revisions.db
 site/summary.json
 site/metadata.json
+site/docs/
+
+# tardoc output is generated in CI; only the hand-written notes are kept
+tardoc/*
+!tardoc/notes/
+llms.txt
 
 .Rhistory
 .RData

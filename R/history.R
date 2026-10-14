@@ -51,6 +51,12 @@ release_tag <- function(table_id, release) {
 #' Idempotent: a release CSO has already published (same `updated` stamp) is
 #' skipped, which makes re-running the pipeline safe.
 commit_release <- function(parsed, db = dolt_path()) {
+  if (fetch_failed(parsed)) {
+    return(data.frame(table_id = parsed$table_id, release = NA_character_,
+                      tag = NA_character_,
+                      status = paste("fetch failed:", parsed$error),
+                      head = NA_character_))
+  }
   con <- dolt_open(db)
   on.exit(DBI::dbDisconnect(con), add = TRUE)
 
