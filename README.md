@@ -32,6 +32,7 @@ browsable with [Datasette Lite](https://lite.datasette.io), with no server.
 | RSM08 | Retail sales index (base 2021) | Late survey returns and re-estimated seasonal factors |
 | HPM09 | Residential property price index | Late stamp duty filings revise recent months |
 | CPM24 | Consumer price index | The control: almost never revised |
+| ADM01 | Livestock slaughterings | Monthly, from Department of Agriculture records since 2025 |
 
 ## The site
 
@@ -102,7 +103,7 @@ Add it to `tables.yml`:
 
 Every statistic is recorded in the DoltLite history; `publish` only trims the
 site, which keeps the in-browser database small (about 7 MB, 1 MB gzipped,
-for the six tables above).
+for the tables above).
 
 The parser is generic JSON-stat 2.0, so any PxStat table works.
 

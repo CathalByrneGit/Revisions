@@ -56,3 +56,10 @@ tables:
     why: >
       CPI is almost never revised, which makes it the control: any change
       here would be unusual and worth a closer look.
+
+  - id: ADM01
+    title: Livestock slaughterings
+    why: >
+      Monthly cattle, sheep, pig and poultry slaughterings. Since January 2025
+      the figures come directly from the Department of Agriculture, so this
+      shows whether a near-administrative source still gets revised.
